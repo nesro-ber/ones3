@@ -80,78 +80,7 @@ export function FAQPage() {
           </Accordion>
         )}
       </div>
-
-      <Separator className="my-8" />
-
-      <div className="max-w-2xl mx-auto">
-        <ChatbotSection userId={user.id} />
-      </div>
     </div>
-  );
-}
-
-function ChatbotSection({ userId }: { userId: number }) {
-  const [question, setQuestion] = useState('');
-  const { data: questions } = useQuestions();
-  const { mutate, isPending } = useCreateQuestion();
-
-  const handleAskQuestion = () => {
-    if (question.trim()) {
-      mutate({ userId, question }, {
-        onSuccess: () => setQuestion('')
-      });
-    }
-  };
-
-  const userQuestions = questions?.filter(q => q.userId === userId) || [];
-
-  return (
-    <Card className="enterprise-shadow rounded-2xl overflow-hidden">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-primary" />
-          <CardTitle>Support & Questions</CardTitle>
-        </div>
-        <CardDescription>Avez-vous une question spécifique ? Posez-la directement !</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
-          <Input 
-            data-testid="input-question"
-            placeholder="Tapez votre question..."
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAskQuestion()}
-            className="rounded-xl"
-          />
-          <Button 
-            data-testid="button-send-question"
-            onClick={handleAskQuestion} 
-            disabled={isPending || !question.trim()}
-            className="rounded-xl"
-            size="icon"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {userQuestions.length > 0 && (
-          <div className="space-y-3 mt-4 pt-4 border-t">
-            <p className="text-sm font-semibold text-foreground">Vos Questions Récentes ({userQuestions.length})</p>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {userQuestions.map(q => (
-                <div key={q.id} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm">
-                  <p className="text-slate-700 dark:text-slate-300">{q.question}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {new Date(q.createdAt).toLocaleDateString('fr-FR')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

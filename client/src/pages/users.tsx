@@ -1,13 +1,19 @@
 import { useAuth } from "@/store/use-auth";
-import { useUsers } from "@/hooks/use-api";
+import { useUsers, useCreateUser } from "@/hooks/use-api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { UserCog, Mail, Briefcase } from "lucide-react";
-import type { User } from "@shared/schema";
+import { UserCog, Mail, Briefcase, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
+import type { User, InsertUser } from "@shared/schema";
 
 export function UsersPage() {
   const { role } = useAuth();
   const { data: users, isLoading } = useUsers();
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   if (role !== 'admin') {
     return (
@@ -30,11 +36,23 @@ export function UsersPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground tracking-tight">Gestion des Employés</h1>
-        <p className="text-muted-foreground mt-1">
-          Annuaire du personnel et gestion des accès au portail.
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Gestion des Employés</h1>
+          <p className="text-muted-foreground mt-1">
+            Annuaire du personnel et gestion des accès au portail.
+          </p>
+        </div>
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button className="rounded-xl bg-primary text-white">
+              <Plus className="h-4 w-4 mr-2" /> Ajouter un Employé
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-2xl max-w-2xl">
+            <AddEmployeeForm onSuccess={() => setIsAddOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="enterprise-shadow border-none rounded-2xl">
@@ -77,5 +95,182 @@ export function UsersPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function AddEmployeeForm({ onSuccess }: { onSuccess: () => void }) {
+  const [formData, setFormData] = useState<Partial<InsertUser>>({
+    username: '',
+    password: '',
+    fullName: '',
+    role: 'agent',
+    email: '',
+    department: '',
+    firstName: '',
+    lastName: '',
+    matricule: '',
+    hireDate: '',
+    familialStatus: '',
+    bloodType: '',
+  });
+  const { mutate, isPending } = useCreateUser();
+
+  const handleChange = (field: keyof InsertUser, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.username && formData.password && formData.fullName) {
+      mutate(formData as InsertUser, { onSuccess });
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <DialogHeader>
+        <DialogTitle>Ajouter un Nouvel Employé</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nom Complet *</label>
+            <Input 
+              required 
+              value={formData.fullName || ''} 
+              onChange={e => handleChange('fullName', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="Ahmed Benali"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nom d'utilisateur *</label>
+            <Input 
+              required 
+              value={formData.username || ''} 
+              onChange={e => handleChange('username', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="a.benali"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Mot de passe *</label>
+            <Input 
+              required 
+              type="password"
+              value={formData.password || ''} 
+              onChange={e => handleChange('password', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="••••••••"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Rôle</label>
+            <Select value={formData.role || 'agent'} onValueChange={(val) => handleChange('role', val)}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Sélectionner un rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="agent">Agent</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="hr">RH</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Prénom</label>
+            <Input 
+              value={formData.firstName || ''} 
+              onChange={e => handleChange('firstName', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="Ahmed"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Nom</label>
+            <Input 
+              value={formData.lastName || ''} 
+              onChange={e => handleChange('lastName', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="Benali"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Email</label>
+            <Input 
+              type="email"
+              value={formData.email || ''} 
+              onChange={e => handleChange('email', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="ahmed@sonatrach.dz"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Département</label>
+            <Input 
+              value={formData.department || ''} 
+              onChange={e => handleChange('department', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="IT"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Matricule</label>
+            <Input 
+              value={formData.matricule || ''} 
+              onChange={e => handleChange('matricule', e.target.value)} 
+              className="rounded-xl" 
+              placeholder="AG001"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date d'embauche</label>
+            <Input 
+              type="date"
+              value={formData.hireDate || ''} 
+              onChange={e => handleChange('hireDate', e.target.value)} 
+              className="rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Statut Familial</label>
+            <Select value={formData.familialStatus || ''} onValueChange={(val) => handleChange('familialStatus', val)}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Sélectionner..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Célibataire</SelectItem>
+                <SelectItem value="married">Marié(e)</SelectItem>
+                <SelectItem value="divorced">Divorcé(e)</SelectItem>
+                <SelectItem value="widowed">Veuf(ve)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Groupe Sanguin</label>
+            <Select value={formData.bloodType || ''} onValueChange={(val) => handleChange('bloodType', val)}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Sélectionner..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="O+">O+</SelectItem>
+                <SelectItem value="O-">O-</SelectItem>
+                <SelectItem value="A+">A+</SelectItem>
+                <SelectItem value="A-">A-</SelectItem>
+                <SelectItem value="B+">B+</SelectItem>
+                <SelectItem value="B-">B-</SelectItem>
+                <SelectItem value="AB+">AB+</SelectItem>
+                <SelectItem value="AB-">AB-</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="ghost" onClick={onSuccess}>Annuler</Button>
+        <Button type="submit" disabled={isPending} className="bg-primary">Créer l'Employé</Button>
+      </DialogFooter>
+    </form>
   );
 }
