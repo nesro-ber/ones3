@@ -65,39 +65,68 @@ export function Dashboard() {
         }
       ];
     }
+
+    if (role === 'admin') {
+      return [
+        {
+          title: "Total Employé",
+          value: usersData?.length || 0,
+          icon: Users,
+          trend: "+2 ce mois",
+          loading: loadingUsers,
+          color: "bg-blue-50 text-blue-600"
+        },
+        {
+          title: "Total Service",
+          value: new Set(usersData?.map(u => u.department) || []).size || 0,
+          icon: Briefcase,
+          trend: "Services actifs",
+          loading: loadingUsers,
+          color: "bg-orange-50 text-orange-600"
+        },
+        {
+          title: "Total Demande",
+          value: requests?.length || 0,
+          icon: FileText,
+          trend: "En tout",
+          loading: loadingReqs,
+          color: "bg-green-50 text-green-600"
+        }
+      ];
+    }
     
     return [
       {
-        title: role === 'admin' ? "Total Employés" : "Demandes en cours",
-        value: role === 'admin' ? (usersData?.length || 0) : (requests?.filter(r => r.status === 'pending').length || 0),
-        icon: role === 'admin' ? Users : Clock,
+        title: "Total Employés",
+        value: usersData?.length || 0,
+        icon: Users,
         trend: "+12% ce mois",
-        loading: role === 'admin' ? loadingUsers : loadingReqs,
+        loading: loadingUsers,
         color: "bg-blue-50 text-blue-600"
       },
       {
-        title: "Missions Globales",
-        value: missions?.length || 0,
-        icon: Briefcase,
-        trend: "Stable",
-        loading: loadingMissions,
-        color: "bg-orange-50 text-primary"
-      },
-      {
-        title: "Demandes Approuvées",
-        value: requests?.filter(r => r.status === 'approved').length || 0,
-        icon: CheckCircle2,
-        trend: "+5% ce mois",
+        title: "Demande de Jour",
+        value: requests?.filter(r => r.type === 'leave').length || 0,
+        icon: Palmtree,
+        trend: "Congés et permissions",
         loading: loadingReqs,
         color: "bg-green-50 text-green-600"
       },
       {
-        title: "Notifications",
-        value: notifications?.length || 0,
+        title: "Demande en Retard",
+        value: requests?.filter(r => r.status === 'pending').length || 0,
         icon: AlertCircle,
-        trend: "Alertes système",
-        loading: false,
-        color: "bg-purple-50 text-purple-600"
+        trend: "À traiter rapidement",
+        loading: loadingReqs,
+        color: "bg-red-50 text-red-600"
+      },
+      {
+        title: "Demande en Attente",
+        value: requests?.filter(r => r.status === 'submitted').length || 0,
+        icon: Clock,
+        trend: "En cours de traitement",
+        loading: loadingReqs,
+        color: "bg-orange-50 text-orange-600"
       }
     ];
   };
