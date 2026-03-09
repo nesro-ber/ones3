@@ -1,0 +1,340 @@
+import { useState } from "react";
+import { useAuth } from "@/store/use-auth";
+import { useRequests, useCreateRequest, useUpdateRequestStatus } from "@/hooks/use-api";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter 
+} from "@/components/ui/dialog";
+import { 
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { FileText, Plus, Check, X, Clock, CalendarIcon, ChevronRight, Download } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import type { Request } from "@shared/schema";
+
+const STEPS = [
+  { id: 'submitted', label: 'Soumise', color: 'bg-blue-500' },
+  { id: 'validated_manager', label: 'Validée par Responsable', color: 'bg-indigo-500' },
+  { id: 'approved_hr', label: 'Approuvée RH', color: 'bg-emerald-500' },
+  { id: 'completed', label: 'Complétée', color: 'bg-slate-500' },
+];
+
+export function RequestsPage() {
+  const { role, user } = useAuth();
+  const { data: requests, isLoading } = useRequests();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const displayRequests = requests || [];
+  
+  const visibleRequests = role === 'agent' 
+    ? displayRequests.filter(r => r.userId === user.id)
+    : displayRequests;
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Demandes & Documents</h1>
+          <p className="text-muted-foreground mt-1">
+            {role === 'agent' ? "Gérez vos demandes et absences." : "Validation et traitement des demandes."}
+          </p>
+        </div>
+
+        {role === 'agent' && (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white rounded-xl shadow-lg shadow-primary/20 gap-2">
+                <Plus className="h-4 w-4" /> Nouvelle Demande
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px] rounded-2xl">
+              <CreateRequestForm onSuccess={() => setIsCreateOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      <Card className="enterprise-shadow border-none rounded-2xl">
+        <CardHeader>
+          <CardTitle>Historique des demandes</CardTitle>
+          <CardDescription>Suivez l'état d'avancement de vos demandes à travers les 4 étapes de validation.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground text-sm font-medium animate-pulse">Chargement des données...</div>
+            ) : visibleRequests.length === 0 ? (
+              <div className="text-center py-12 flex flex-col items-center">
+                <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                  <FileText className="h-8 w-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-medium text-slate-900">Aucune demande</h3>
+                <p className="text-slate-500">Vous n'avez aucune demande pour le moment.</p>
+              </div>
+            ) : (
+              visibleRequests.map((req) => (
+                <RequestItem key={req.id} request={req} role={role} />
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RequestItem({ request, role }: { request: Request, role: string }) {
+  const { mutate: updateStatus, isPending } = useUpdateRequestStatus();
+  
+  const currentStepIndex = STEPS.findIndex(s => s.id === request.status);
+  const isRejected = request.status === 'rejected';
+
+  const getIcon = (type: string) => {
+    return type === 'leave' ? <CalendarIcon className="h-5 w-5 text-blue-500" /> : <FileText className="h-5 w-5 text-purple-500" />;
+  };
+
+  const getDocumentTypeLabel = (documentType?: string | null) => {
+    const types: Record<string, string> = {
+      'attestation_travail': 'Attestation de travail',
+      'releve_emolument': 'Relevé d\'émolument',
+      'certificat_travail': 'Certificat de travail',
+      'attestation_presence': 'Attestation de présence',
+      'autre': 'Autre document',
+    };
+    return documentType ? types[documentType] || documentType : '';
+  };
+
+  const handleDownloadFile = (fileData: string | undefined, fileName: string | undefined) => {
+    if (!fileData || !fileName) return;
+    const link = document.createElement('a');
+    link.href = fileData;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleAction = (newStatus: string) => {
+    updateStatus({ id: request.id, status: newStatus });
+  };
+
+  const handleReject = () => {
+    const reason = window.prompt("Motif du refus ?");
+    if (reason) updateStatus({ id: request.id, status: 'rejected', reason });
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-4 p-4 border border-slate-200 rounded-xl hover:shadow-md transition-all duration-300 items-start">
+      <div className="h-10 w-10 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-100">
+        {getIcon(request.type)}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <h4 className="font-semibold text-slate-900">
+            {request.type === 'leave' ? 'Demande de Congé' : 'Demande de Document'}
+          </h4>
+          {isRejected && <Badge variant="destructive" className="rounded-full px-2 py-0.5 text-xs font-semibold">Refusée</Badge>}
+          {!isRejected && request.status === 'completed' && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none rounded-full px-2 py-0.5 text-xs font-semibold">Terminée</Badge>}
+        </div>
+        
+        {request.type === 'document' && request.documentType && (
+          <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">{getDocumentTypeLabel(request.documentType)}</p>
+        )}
+        
+        <p className="text-sm text-slate-600 mb-2">{request.description}</p>
+        
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-2">
+          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {request.createdAt ? format(new Date(request.createdAt), 'dd MMM', { locale: fr }) : 'Récent'}</span>
+          {request.fileName && (
+            <span className="flex items-center gap-1 text-slate-500">
+              <FileText className="h-3.5 w-3.5" /> {request.fileName}
+            </span>
+          )}
+        </div>
+        
+        {!isRejected && (
+          <div className="flex items-center gap-1 sm:gap-2 mb-3">
+            {STEPS.map((step, index) => {
+              const isPast = index < currentStepIndex;
+              const isCurrent = index === currentStepIndex;
+              return (
+                <div key={step.id} className="flex-1 h-1.5 rounded-full bg-slate-100 relative" style={{ backgroundColor: isPast || isCurrent ? undefined : undefined }}>
+                  <div className={`h-full rounded-full transition-colors ${isPast || isCurrent ? step.color : 'bg-slate-100'}`} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {((role === 'manager' && request.status === 'submitted') || 
+            (role === 'hr' && request.status === 'validated_manager')) && !isRejected && (
+            <>
+              <Button 
+                size="sm" 
+                className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg h-8 text-xs font-semibold"
+                onClick={() => handleAction(role === 'manager' ? 'validated_manager' : 'approved_hr')}
+                disabled={isPending}
+              >
+                <Check className="h-3.5 w-3.5 mr-1" /> {role === 'manager' ? 'Valider' : 'Approuver'}
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 rounded-lg h-8 text-xs font-semibold"
+                onClick={handleReject}
+                disabled={isPending}
+              >
+                <X className="h-3.5 w-3.5 mr-1" /> Refuser
+              </Button>
+            </>
+          )}
+
+          {role === 'hr' && request.status === 'approved_hr' && (
+            <Button 
+              size="sm" 
+              className="bg-slate-700 hover:bg-slate-800 text-white rounded-lg h-8 text-xs font-semibold"
+              onClick={() => handleAction('completed')}
+              disabled={isPending}
+            >
+              <Check className="h-3.5 w-3.5 mr-1" /> Marquer comme complétée
+            </Button>
+          )}
+
+          {request.fileName && request.fileData && (
+            <Button 
+              size="sm"
+              variant="outline"
+              className="rounded-lg h-8 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/5"
+              onClick={() => handleDownloadFile(request.fileData, request.fileName)}
+              data-testid="button-download-file"
+            >
+              <Download className="h-3.5 w-3.5 mr-1" /> Télécharger
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {isRejected && (
+        <div className="mt-2 p-3 bg-red-50 border border-red-100 rounded-lg flex gap-2 items-start w-full">
+          <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+          <div className="space-y-0.5 text-sm">
+            <p className="font-semibold text-red-700">{request.reason || "Demande refusée"}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreateRequestForm({ onSuccess }: { onSuccess: () => void }) {
+  const [docType, setDocType] = useState('attestation_travail');
+  const [desc, setDesc] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [fileData, setFileData] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { mutate, isPending } = useCreateRequest();
+
+  const documentTypes = [
+    { value: 'attestation_travail', label: 'Attestation de travail' },
+    { value: 'releve_emolument', label: 'Relevé d\'émolument / Fiche de paie' },
+    { value: 'certificat_travail', label: 'Certificat de travail' },
+    { value: 'attestation_presence', label: 'Attestation de présence' },
+    { value: 'autre', label: 'Autre document' },
+  ];
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        setFileData(base64);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    mutate({
+      userId: user.id,
+      type: 'document',
+      documentType: docType,
+      description: desc,
+      status: 'submitted',
+      fileData: fileData || undefined,
+      fileName: fileName || undefined,
+    }, {
+      onSuccess: () => onSuccess()
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <DialogHeader>
+        <DialogTitle className="text-2xl font-bold tracking-tight">Nouvelle Demande</DialogTitle>
+        <DialogDescription className="text-base font-medium">
+          Remplissez le formulaire ci-dessous pour soumettre votre demande. Elle passera par 4 étapes de validation.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="space-y-5">
+        <div className="space-y-2.5">
+          <label className="text-sm font-bold uppercase tracking-wider text-slate-500">Type de document</label>
+          <Select value={docType} onValueChange={setDocType}>
+            <SelectTrigger className="w-full rounded-xl h-12 border-slate-200 focus:ring-primary/20">
+              <SelectValue placeholder="Sélectionnez un document" />
+            </SelectTrigger>
+            <SelectContent>
+              {documentTypes.map(dt => (
+                <SelectItem key={dt.value} value={dt.value} className="font-medium">{dt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2.5">
+          <label className="text-sm font-bold uppercase tracking-wider text-slate-500">Description détaillée</label>
+          <Textarea 
+            required 
+            placeholder="Ex: Demande d'attestation de travail pour dossier bancaire..."
+            className="min-h-[120px] rounded-xl resize-none border-slate-200 focus:ring-primary/20 p-4 font-medium"
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2.5">
+          <label className="text-sm font-bold uppercase tracking-wider text-slate-500">Joindre un fichier (optionnel)</label>
+          <input
+            type="file"
+            onChange={handleFileChange}
+            className="block w-full text-sm border border-slate-200 rounded-xl p-2.5 cursor-pointer file:mr-4 file:rounded-xl file:border-0 file:bg-primary file:text-white file:font-medium file:px-4 file:py-2 file:cursor-pointer"
+            data-testid="input-file-upload"
+          />
+          {fileName && (
+            <p className="text-sm font-medium text-emerald-600 flex items-center gap-2">
+              <span className="text-emerald-500">✓</span> {fileName}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="ghost" onClick={onSuccess} className="rounded-xl font-bold">Annuler</Button>
+        <Button type="submit" disabled={isPending} className="bg-primary hover:bg-primary/90 text-white rounded-xl font-bold px-8 h-12 shadow-lg shadow-primary/20">
+          {isPending ? "Envoi..." : "Soumettre la demande"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+import { AlertCircle } from "lucide-react";
